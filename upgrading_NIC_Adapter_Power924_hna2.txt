@@ -1,0 +1,383 @@
+===========================================
+AIX/VIOS Network microcode update procedure
+===========================================
+This document is customized for our environment from IBM original 
+readme documents. Links to all documents used are cited at the end. 
+This document is shared for educational purposes only.
+-------------------------------------------------------------------
+   Machine model: p924
+    Machine type: IBM,9009-42A
+Firmware Version: IBM,FW910.30 (VL910_135)
+        iOSlevel: 3.1.4.10
+
+Network card specific attributes:
+---------------------------------
+         Card description: PCIe2 4-Port (10GbE SFP+ & 1GbE RJ45) Adapter
+                     Part# e4148a1614109304
+Feature Code/Marketing ID: EN0S
+  Current microcode level: 30090140
+   Future microcode level: 30100310
+
+==============================================
+Determine the Current Microcode Level for AIX:
+==============================================
+
+[1] List all ent adapters installed on the system
+
+# lsdev -C|grep e4148a161
+ent0       Available 02-00       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent1       Available 02-01       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent2       Available 02-02       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+ent3       Available 02-03       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+#
+
+[2] To check the current microcode level for the adapter or controller enter the 
+    following command: lscfg -vl entX
+# lscfg -vl ent0
+  ent0  U78D2.001.WZS091X-P1-C11-T1  PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+
+      PCIe2 4-Port (10GbE SFP+ & 1GbE RJ45) Adapter:
+        FRU Number..................00E2715
+        EC Level....................D77452
+        Customer Card ID Number.....2CC3
+        Part Number.................00E2719
+        Feature Code/Marketing ID...EN0S
+        Serial Number...............Y150184AN08Z
+        Manufacture ID..............000E1E805C90
+        Network Address.............000E1E805C90
+        ROM Level.(alterable).......30090140
+        Hardware Location Code......U78D2.001.WZS091X-P1-C11-T1
+
+[3] microcode file already downloaded from IBM Fix Central and located below
+
+[root@centos4js u01]# ls -tlr e4148a1614109304.30100310.aix.rpm
+-rw-r--r--. 1 root root 757964 Apr 11 12:58 e4148a1614109304.30100310.aix.rpm
+
+[4] Downloading the RPM Format File to the Target Server for VIOS:
+
+# scp root@10.12.5.14:/u01/e4148a1614109304.30100310.aix.rpm .
+root@10.12.5.14's password:
+e4148a1614109304.30100310.aix.rpm                                                                      100%  740KB  23.4MB/s   00:00
+#
+
+[5] Unpacking the RPM file and saving it in microcode library /usr/lib/microcode
+    Checking checksum of each file to make sure they didn't get corrupt in transit 
+
+# rpm -ihv --ignoreos e4148a1614109304.30100310.aix.rpm
+Verifying...                          ################################# [100%]
+Preparing...                          ################################# [100%]
+Updating / installing...
+   1:e4148a1614109304-30100310-1      ################################# [100%]
+# ls -ltr /usr/lib/microcode
+
+# ls -ltr /usr/lib/microcode/e4148a*
+-rwxr-xr-x    1 root     system      2097152 Jun 10 2019  /usr/lib/microcode/e4148a169304.30100310
+-rwxr-xr-x    1 root     system      2097152 Jun 10 2019  /usr/lib/microcode/e4148a1614109304.30100310
+
+# sum /usr/lib/microcode/e4148a169304.30100310
+35363  2048 /usr/lib/microcode/e4148a169304.30100310
+# sum /usr/lib/microcode/e4148a1614109304.30100310
+35363  2048 /usr/lib/microcode/e4148a1614109304.30100310
+
+================================================
+6.0 Microcode Download Procedure for VIOS:
+================================================
+
+6.1 In a dual VIOS environment with SEA failover, applications may be running while
+this work is being done. Start work with VIO2 first.
+
+6.2 Remove the interface/IP address from the all ports identified in section 1.0 for 
+the adapters that will be upgraded.
+
+ 6.2.a] Before detaching the interface, record the ip address and any other pertinent 
+	information that was configured on the Adapter.  This information may be needed 
+	if the microcode update overwrites this section on the Adapter.
+	
+	# lsdev -C|grep ent
+ent0       Available 02-00       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent1       Available 02-01       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent2       Available 02-02       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+ent3       Available 02-03       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+ent4       Available             Virtual I/O Ethernet Adapter (l-lan)
+ent5       Available             Virtual I/O Ethernet Adapter (l-lan)
+ent6       Available             Shared Ethernet Adapter
+#
+
+hna2vio2:/home/padmin$ lsmap -all -net
+SVEA   Physloc
+------ --------------------------------------------
+ent4   U9009.42A.784E5E0-V3-C2-T1
+
+SEA                   ent6
+Backing device        ent0
+Status                Available
+Physloc               U78D2.001.WZS091X-P1-C11-T1
+
+SVEA   Physloc
+------ --------------------------------------------
+ent5   U9009.42A.784E5E0-V3-C3-T1
+
+SEA                 NO SHARED ETHERNET ADAPTER FOUND
+
+hna2vio2:/home/padmin$ entstat -all ent6 |grep -E "ETHERNET STATISTICS|Device Type:|Hardware Address:|Number of adapters:|Real Adapter:|PCIe2|Link Status:|Media Speed Running: |Virtual Adapter: |Port VLAN ID:|VLAN Tag IDs:|Control Channel Adapter:|Priority|Switch ID:"
+ETHERNET STATISTICS (ent6) :
+Device Type: Shared Ethernet Adapter
+Hardware Address: 00:0e:1e:80:5c:90
+Number of adapters: 2
+    Priority: 2
+Real Adapter: ent0
+ETHERNET STATISTICS (ent0) :
+Device Type: PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+Physical Port Link Status: Up
+Logical Port Link Status: Up
+Virtual Adapter: ent4
+ETHERNET STATISTICS (ent4) :
+Device Type: Virtual I/O Ethernet Adapter (l-lan)
+Hardware Address: 4e:d3:59:88:d3:02
+  Priority: 2  Active: False
+Port VLAN ID:     1
+VLAN Tag IDs:  None
+Switch ID: ETHERNET0
+Control Channel Adapter: ent5
+ETHERNET STATISTICS (ent5) :
+Device Type: Virtual I/O Ethernet Adapter (l-lan)
+Hardware Address: 4e:d3:59:88:d3:03
+Port VLAN ID:    99
+VLAN Tag IDs:  None
+Switch ID: ETHERNET0
+
+
+In this case, it's VIO2, hence is't not in 'Active' state
+
+# ifconfig -a
+en6: flags=1e084863,2000c0<UP,BROADCAST,NOTRAILERS,RUNNING,SIMPLEX,MULTICAST,GROUPRT,64BIT,CHECKSUM_OFFLOAD(ACTIVE),LARGESEND,CHAIN>
+        inet 10.6.2.204 netmask 0xffff0000 broadcast 10.6.255.255
+         tcp_sendspace 262144 tcp_recvspace 262144 rfc1323 1
+lo0: flags=e08084b,c0<UP,BROADCAST,LOOPBACK,RUNNING,SIMPLEX,MULTICAST,GROUPRT,64BIT,LARGESEND,CHAIN>
+        inet 127.0.0.1 netmask 0xff000000 broadcast 127.255.255.255
+        inet6 ::1%1/64
+         tcp_sendspace 131072 tcp_recvspace 131072 rfc1323 1
+
+
+
+                                                     Minimum Configuration & Startup
+
+                              To Delete existing configuration data, please use Further Configuration menus
+
+Type or select values in entry fields.
+Press Enter AFTER making all desired changes.
+
+                                                        [Entry Fields]
+* HOSTNAME                                           [hna2vio2]
+* Internet ADDRESS (dotted decimal)                  [10.6.2.204]
+  Network MASK (dotted decimal)                      [255.255.0.0]
+* Network INTERFACE                                   en6
+  NAMESERVER
+           Internet ADDRESS (dotted decimal)         [10.6.2.2]
+           DOMAIN Name                               [xyz.com]
+  Default Gateway
+       Address (dotted decimal or symbolic name)     [10.6.1.1]
+       Cost                                          [0]                                                                               #
+       Do Active Dead Gateway Detection?              no                                                                              +
+  Your CABLE Type                                     N/A                                                                             +
+  START Now                                           no                                                                              +
+
+
+For HNA2VIO2, the SEA adapter(ent6) was created on the physical adapter ent0 on the 
+backend, on top of a virtual adapter ent4 using vlan 1 and the virtual adapter ent5
+as control channel.
+==========================================================================
+==                  HNA2VIO1
+==========================================================================
+
+Collecting VIO1 network config data
+
+hna2vio1:/home/padmin$ entstat -all ent6 |grep -E "ETHERNET STATISTICS|Device Type:|Hardware Address:|Number of adapters:|Real Adap>
+ETHERNET STATISTICS (ent6) :
+Device Type: Shared Ethernet Adapter
+Hardware Address: 00:0e:1e:80:52:78
+Number of adapters: 2
+    Priority: 1
+Real Adapter: ent0
+ETHERNET STATISTICS (ent0) :
+Device Type: PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+Physical Port Link Status: Up
+Logical Port Link Status: Up
+Virtual Adapter: ent4
+ETHERNET STATISTICS (ent4) :
+Device Type: Virtual I/O Ethernet Adapter (l-lan)
+Hardware Address: 4e:d3:5f:48:94:02
+  Priority: 1  Active: False
+Port VLAN ID:     1
+VLAN Tag IDs:  None
+Switch ID: ETHERNET0
+Control Channel Adapter: ent5
+ETHERNET STATISTICS (ent5) :
+Device Type: Virtual I/O Ethernet Adapter (l-lan)
+Hardware Address: 4e:d3:5f:48:94:03
+Port VLAN ID:    99
+VLAN Tag IDs:  None
+Switch ID: ETHERNET0
+
+# ifconfig -a
+en6: flags=1e084863,2000c0<UP,BROADCAST,NOTRAILERS,RUNNING,SIMPLEX,MULTICAST,GROUPRT,64BIT,CHECKSUM_OFFLOAD(ACTIVE),LARGESEND,CHAIN>
+        inet 10.6.2.203 netmask 0xffff0000 broadcast 10.6.255.255
+         tcp_sendspace 262144 tcp_recvspace 262144 rfc1323 1
+lo0: flags=e08084b,c0<UP,BROADCAST,LOOPBACK,RUNNING,SIMPLEX,MULTICAST,GROUPRT,64BIT,LARGESEND,CHAIN>
+        inet 127.0.0.1 netmask 0xff000000 broadcast 127.255.255.255
+        inet6 ::1%1/64
+         tcp_sendspace 131072 tcp_recvspace 131072 rfc1323 1
+#
+
+# lsdev -C|grep ent
+ent0       Available 02-00       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent1       Available 02-01       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent2       Available 02-02       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+ent3       Available 02-03       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+ent4       Available             Virtual I/O Ethernet Adapter (l-lan)
+ent5       Available             Virtual I/O Ethernet Adapter (l-lan)
+ent6       Available             Shared Ethernet Adapter
+
+hna2vio1:/home/padmin$ lsmap -all  -net
+SVEA   Physloc
+------ --------------------------------------------
+ent4   U9009.42A.784E5E0-V2-C2-T1
+
+SEA                   ent6
+Backing device        ent0
+Status                Available
+Physloc               U78D2.001.WZS091X-P1-C9-T1
+
+SVEA   Physloc
+------ --------------------------------------------
+ent5   U9009.42A.784E5E0-V2-C3-T1
+
+SEA                 NO SHARED ETHERNET ADAPTER FOUND
+
+hna2vio1:/home/padmin$
+
+                                                     Minimum Configuration & Startup
+
+                              To Delete existing configuration data, please use Further Configuration menus
+
+Type or select values in entry fields.
+Press Enter AFTER making all desired changes.
+
+                                                        [Entry Fields]
+* HOSTNAME                                           [hna2vio1]
+* Internet ADDRESS (dotted decimal)                  [10.6.2.203]
+  Network MASK (dotted decimal)                      [255.255.0.0]
+* Network INTERFACE                                   en6
+  NAMESERVER
+           Internet ADDRESS (dotted decimal)         [10.6.2.2]
+           DOMAIN Name                               [xyz.com]
+  Default Gateway
+       Address (dotted decimal or symbolic name)     [10.6.1.1]
+       Cost                                          [0]                                                                               #
+       Do Active Dead Gateway Detection?              no                                                                              +
+  Your CABLE Type                                     N/A                                                                             +
+  START Now                                           no                                                                              +
+
+===================================================
+== End of HNA2VIO1 network  config data
+==================================================
+
+
+6.2.b] Microcode on  following adapters will have to be upgraded
+
+ent0       Available 02-00       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent1       Available 02-01       PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+ent2       Available 02-02       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+ent3       Available 02-03       PCIe2 4-Port Adapter (1GbE RJ45) (e4148a1614109404)
+
+Since this is single card with 4 ports, ent2 and ent3 are for 1GbE RJ45 and ent0 and ent1 for 10Gbe SFP+, 
+howerver, all 4 ports share a common area for microcode. Hence will be upgraded in one shot.
+
+We can upgrade en1 through ent3 without detaching any interface, since these adapters are 
+not being used. We have to detach interface from ent0 (ent6 SEA) since it's the one being used.
+
+
+-> login to the vio server from a console connection to avoid losing network connectivity
+-> now switch SEA to backup VIO
+$ entstat -all ent6 |grep -E "ETHERNET STATISTICS|Device Type:|Hardware Address:|Number of adapters:|Real Adapter:|PCIe2|Link Status:|Media Speed Running: |Virtual Adapter: |Port VLAN ID:|VLAN Tag IDs:|Control Channel Adapter:|Priority|Switch ID:"
+
+
+$ chdev -dev ent6 -attr ha_mode=standby
+
+$ oem_setup_env
+# ifconfig en6 down detach
+# rmdev -l ent6
+
+#diag –d ent0 –T download
+
+INSTALL MICROCODE                                                         802118
+ent0    PCIe2 4-Port Adapter (10GbE SFP+) (e4148a1614109304)
+
+
+Installation of the microcode has completed successfully
+on the following instances of the device:
+ent0, ent1, ent2, ent3
+
+The current microcode level is 30100310.
+
+Please run diagnostics on these resources to
+ensure that the device is functioning properly.
+
+# lsmcode -A|grep ent
+ent0!e4148a1614109304.30100310
+ent1!e4148a1614109304.30100310
+ent2!e4148a1614109304.30100310
+ent3!e4148a1614109304.30100310
+
+
+6.2.C] Bring the network back up again
+
+
+6.2.D] Now switch SEA back to primary mode:
+
+# mkdev -l ent6
+# ifconfig en6 up
+
+#-- makesure that the adapters are in "avaialble" state
+# # lsdev |grep ent
+# if not then reconfigure the adapter and interfaces by executing "cfgdev"
+#--- VIO2 -- reconfiure the adapter's IP information by using followig command or using "smit"
+# /usr/sbin/mktcpip -h'hna2vio2' -a'10.6.2.204' -m'255.255.0.0' -i'en6' -n'10.6.2.2' -d'xyz.com' -g'10.6.1.1' -A'no' -t'N/A'
+#--- VIO1
+# /usr/sbin/mktcpip -h'hna2vio1' -a'10.6.2.203' -m'255.255.0.0' -i'en6' -n'10.6.2.2' -d'xyz.com' -g'10.6.1.1' -A'no' -t'N/A'
+# exit (exit root shell)
+
+Now switch SEA back to primary mode:
+
+$ chdev –dev ent6 -attr ha_mode=auto
+
+====================================
+HNA2VIO2 completed on Apr 18th)
+====================================
+
+
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ref:
+https://ak-delivery04-mul.dhe.ibm.com/sar/CMA/IOA/08blq/3/Shiner-S_EN0S_EN0U_EN0T_EN0V_30100310_readme_V9-AIXandLinux.html
+http://www.unixwerk.eu/aix/ios-howto.html#C1

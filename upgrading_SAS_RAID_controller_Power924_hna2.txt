@@ -1,0 +1,179 @@
+                         IBM Power System p924
+          		Machine type/model: 9009-42A
+		Current Platform Firmware level: VL910_135
+																	Upgrade firmware on SAS raid controller
+PCIe3 RAID SAS Adapter Quad-port 6Gb x8 & PCIe3 SAS Tape Adapter Quad-port 6Gb x8 (CCIN 57B4)
+PCIe3 x8 SAS RAID Internal Adapter 6Gb (CCIN 57D7, 57D8, 57DC, 2CCA, 2CCD, 2CD2)
+                 Firmware Release DATE: February 7, 2022
+------------------------------------------------------------------			
+This document is customized for our environment from IBM original 
+readme documents. Links to all documents used are cited at the end. 
+This document is shared for educational purposes only.
+-------------------------------------------------------------------
+			
+
+[1] Determine the Current Microcode Level for AIX(VIOS)
+
+Before you install the microcode, it is important to determine the microcode 
+level of the Adapter installed in the target system. Use
+
+the following instructions to read the ROM level stored in the Adapter's VPD.
+
+A)  List the SAS RAID Adapters installed in the system by typing:
+
+    #  lsdev -C | grep sissas
+       sissas0    Available 00-00       PCIe3 x8 SAS RAID Internal Adapter 6Gb
+# ---- HNA2VIO1 -------------------
+
+# lsmcode -A|grep sissas
+sissas0!53495351.19512300
+sissas1!53495351.19512300
+#
+
+B) To check the current microcode level for the adapter or controller enter the 
+following command
+
+   # lscfg -vl sissas0
+  sissas0      8D2.001.WZS091X-P1-C50-T1  PCIe3 x8 SAS RAID Internal Adapter 6Gb
+
+      PCIe3 x8 Internal SAS Adapter 6Gb               :
+        Part Number.................02DE942
+        FRU Number..................02DE941
+        Serial Number...............YL10UE946040
+        Manufacture ID..............00UE
+        EC Level....................0
+        ROM Level.(alterable).......19512200
+        Customer Card ID Number.....57D7
+        Product Specific.(Z1).......1
+        Product Specific.(Z2).......2D35
+        Hardware Location Code......U78D2.001.WZS091X-P1-C50-T1
+#
+#----------------- HNA2VIO1 ------------ TAPE Drive  ------------------------
+#
+# lscfg -vl sissas1
+  sissas1   U78D2.001.WZS091X-P1-C8-T1  PCIe3 RAID SAS Adapter Quad-port 6Gb x8
+
+      PCIe3 RAID SAS Adapter Quad-port 6Gb x8         :
+        Part Number.................02DE932
+        FRU Number..................02DE930
+        Serial Number...............YL10UE954184
+        Manufacture ID..............00UE
+        EC Level....................0
+        ROM Level.(alterable).......19512300
+        Customer Card ID Number.....57B4
+        Product Specific.(Z1).......1
+        Product Specific.(Z2).......2D11
+        Hardware Location Code......U78D2.001.WZS091X-P1-C8-T1
+
+
+
+
+#
+If the ROM Level is less than 19512c00 then you should update the microcode.
+
+
+
+[2] Downloading the RPM Format File to the Target Server for VIOS:
+
+# scp root@10.12.5.14:/u01/pci.1014034a.51-19512c00-1.aix6.1.noarch.rpm .
+root@10.12.5.14's password:
+pci.1014034a.51-19512c00-1.aix6.1.noarch.rpm      100% 3192KB  72.8MB/s   00:00
+#
+
+[3] Unpacking the RPM file and saving it in microcode library /usr/lib/microcode
+    Checking checksum of each file to make sure they didn't get corrupt in transit 
+
+# rpm -ihv --ignoreos --force pci.1014034a.51-19512c00-1.aix6.1.noarch.rpm
+Verifying...                          ################################# [100%]
+Preparing...                          ################################# [100%]
+Updating / installing...
+   1:pci.1014034a.51-19512c00-1       ################################# [100%]
+#
+# ls -ltr /usr/lib/microcode
+
+# ls -ltr /usr/lib/microcode/*.19512c00
+-rwxr-xr-x    1 root     system      3827288 Jan 24 2022  /usr/lib/microcode/53495351.19512c00
+#
+# sum /usr/lib/microcode/53495351.19512c00
+53812  3738 /usr/lib/microcode/53495351.19512c00
+
+File size and checksum matches those of indicated in the document
+
+
+[4] Microcode Download Procedure-SAS Adapters for VIOS
+
+VIO2 on Apr 24th
+
+Procedure:
+1) It is advised, but not necessary to stop all applications.
+2) Enter command "diag" as root and hit Enter
+3) Select the "Task Selection" from diagnostics menu.
+4) Select "Microcode Tasks -> Download Microcode" from "Task Selection" menu.
+5) Select all of the SAS Adapters/Controllers that need to be updated from the 
+   list of devices by pressing "Enter". The devices will be displayed as sissas0  
+   Press "F7".
+6) A dialogue box will be displayed on screen.  Press "Enter" to continue.
+7) Select "/etc/microcode".
+8) A dialogue box will may be displayed on screen.  It will state that the 
+   current microcode level on the adapter is not in the /etc/microcode directory.  
+			This is acceptable as you will be flashing new microcode onto the adapter.  
+			Also, incorrect code will automatically be rejected.  Press "Enter" to continue.
+9) An "M" will be displayed next to the latest level of microcode in the 
+   /etc/microcode directory.  Select that level and press "Enter".
+10) The following message will appear on the screen when download is completed: 
+    "Microcode download complete successfully.  The current microcode level for 
+				the device sissas# is .....  Please run diagnostics on the adapter to ensure 
+				that it is functioning properly."  DO NOT run diagnostics on the device at 
+				this time.
+
+In the case where multiple adapters have been selected for update, if more than 
+one adapter has been selected, diagnostics will continue to the next adapter 
+update, and the option to return to the main menu to select running diagnostics
+on the adapter that has just been updated will not be available until all the 
+adapters have been updated.
+11) Exit diagnostics.
+12) Verify the code level is 19512c00 by typing "lscfg -vl sissas#" for each 
+    SAS device updated. <Where # is the number sissas device>
+
+
+# lscfg -vl sissas0
+  sissas0    U78D2.001.WZS091X-P1-C50-T1  PCIe3 x8 SAS RAID Internal Adapter 6Gb
+
+      PCIe3 x8 Internal SAS Adapter 6Gb               :
+        Part Number.................02DE942
+        FRU Number..................02DE941
+        Serial Number...............YL10UE946040
+        Manufacture ID..............00UE
+        EC Level....................0
+        ROM Level.(alterable).......19512c00
+        Customer Card ID Number.....57D7
+        Product Specific.(Z1).......1
+        Product Specific.(Z2).......2D35
+        Hardware Location Code......U78D2.001.WZS091X-P1-C50-T1
+
+13] Reboot the hna2vio2 server
+   
+			 # shutdown -force -restart
+
+
+# lsmcode -A
+sys0!system:VL910_135 (t) VL910_135 (p) VL910_135 (t)
+sissas0!53495351.19512c00
+fcs0!7710322514101e04.0325080271
+fcs1!7710322514101e04.0325080271
+fcs2!7710322514101e04.0325080271
+fcs3!7710322514101e04.0325080271
+ent0!e4148a1614109304.30100310
+ent1!e4148a1614109304.30100310
+ent2!e4148a1614109304.30100310
+ent3!e4148a1614109304.30100310
+pdisk0!HUSMM32.A1800011.42313641
+pdisk1!HUSMM32.A1800011.42313641
+#
+
+
+
+
+
+Ref:
+https://ak-delivery04-mul.dhe.ibm.com/sar/CMA/IOA/0aax5/0/readme_sissas19512c00.html 

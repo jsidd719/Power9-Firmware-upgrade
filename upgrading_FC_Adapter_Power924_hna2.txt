@@ -1,0 +1,339 @@
+==============================================================================================
+Upgrading PCIe2 Low Profile 8Gb 4-Port FC Adapter
+===============================================================================================
+
+This document is customized for our environment from IBM original readme documents. 
+Links to all documents used are cited at the end. This document is shared for educational 
+purposes only.
+
+==============
+1.0 Overview
+=============
+Part#  7710322514101e04
+feature Code# EN0Y
+Current code level: 0320080270
+New code level: 0325080271
+New Firmware file name: CentOS4JS:/u01/7710322514101e04.0325080271.aix.rpm
+	
+This update contains the AIX RPM file for the current level of microcode for the
+8Gb PCIe2 4-Port FC Adapter, Feature Code(s) EN0Y and EN12.
+
+This is a multi-port adapter with two identical ASICs. Each ASIC controls two 
+ports so only a single resource (port) needs to be updated per ASIC.
+
+In HNA2VIO1 ====>
+
+# lscfg -vl fcs0
+  fcs0             U78D2.001.WZS091X-P1-C10-T1  PCIe2 8Gb 4-Port FC Adapter (7710322514101e04)
+
+        Part Number.................00WT165
+        EC Level....................N99095
+        Feature Code/Marketing ID...EN0Y
+        FRU Number..................00WT107
+        Customer Card ID Number.....EN0Y
+        Serial Number...............11S00WT165Y250NY82WHX8
+        Manufacture ID..............RFD1808W66589
+        Network Address.............21000024FF85BED0
+        ROS Level and ID............0314080246
+        Device Specific.(Z0)........00080246
+        Device Specific.(Z1)........03149095
+        Device Specific.(Z2)........49535020
+        Device Specific.(Z3)........00002532
+        Device Specific.(Z4)........000E0002
+        Device Specific.(Z5)........0001000A
+        Device Specific.(Z6)........00010001
+        Device Specific.(Z7)........00000000
+        Device Specific.(Z8)........20000024FF85BED0
+        Device Specific.(Z9)........ISP
+        Hardware Location Code......U78D2.001.WZS091X-P1-C10-T1
+
+#
+
+
+# lsmcode -A|grep fcs
+fcs0!7710322514101e04.0320080270
+fcs1!7710322514101e04.0320080270
+fcs2!7710322514101e04.0320080270
+fcs3!7710322514101e04.0320080270
+#
+
+# lsmcode -d fcs0
+# lsmcode -cd fcs0
+
+DISPLAY MICROCODE LEVEL                                                           802111
+fcs0             PCIe2 8Gb 4-Port FC Adapter (7710322514101e04)
+
+The current microcode level for fcs0
+is 0320080270.
+
+Use Enter to continue.
+
+=======================
+2.0 Adapters Affected
+=======================
+This microcode is for feature codes EN0Y (Low Profile) and EN12 (High Profile).
+Our card's is of type EN0Y - Low profile
+
+=================================
+3.0 Cautions and Important Notes
+=================================
+Concurrent Download - The microcode installation does NOT support concurrent 
+download while the fcs resources are available for use. If the fcs resources are 
+in use, they must manually be released prior to starting the download. Failure 
+to do so will result in a message instructing that the fcs resource be freed.
+
+NOTE: It is recommended that the installation be scheduled during a maintenance 
+window or during non-peak production periods. 
+
+Note 13th Apr 2023: Microcode applied on both hna2vi02 and hna2vio1 fcs adapters.
+                    During installation, non of the port complained about being
+																				in-use, i.e. fcs resources being in-use.
+
+# fcstat fcs0
+
+
+
+==========================================
+4.0 To Determine Adapter Microcode Levels
+==========================================
+
+We have determined that the current code level is not the latest.
+
+Current code level: 0320080270
+New code level: 0325080271
+
+Note: When displaying the microcode in the ‘lscfg’ output you will notice it 
+does not appear to be the same version as the ‘lsmcode’ output.  The reason the 
+number looks different is that the ‘lscfg’ displays the version in hex and the 
+‘lsmcode’ converts to decimal. Convert two digits at a time.
+
+================================
+5.0 Install RPM Package
+================================
+
+1] Transfer the RPM format file, 7710322514101e04.0325080271.aix.rpm to any 
+   temporary directory on the target system.
+			
+hna2vio2:/home/padmin$ scp root@10.12.5.14:/u01/7710322514101e04.0325080271.aix.rpm .
+root@10.12.5.14's password:
+7710322514101e04.0325080271.aix.rpm                                                                    100%  464KB  17.3MB/s   00:00
+
+If the /etc/microcode directory does not exist, make a directory to receive the 
+RPM format file. On the command line type:
+
+ 
+
+# mkdir /etc/microcode
+
+# rpm -ihv --ignoreos 7710322514101e04.0325080271.aix.rpm
+Verifying...                          ################################# [100%]
+Preparing...                          ################################# [100%]
+Updating / installing...
+   1:7710322514101e04-0325080271-1    ################################# [100%]
+# cd /etc/microcode
+# ls -ltr 7710322514101e04.0325080271
+-rwxr-xr-x    1 root     system      1048576 Jan 20 2020  7710322514101e04.0325080271
+# sum 7710322514101e04.0325080271
+24133  1024 7710322514101e04.0325080271
+#
+
+=======================================
+[6] Installing the Adapter's Microcode
+=======================================
+
+Note:
+
+This 4 port adapter uses 2 ASICs, where each ASIC manages 2 ports. The top two 
+ports are managed by one ASIC and the bottom two ports are managed by the second 
+ASIC. Only one port from each of these pairs needs to be updated for the pair to 
+be updated.
+
+*** Both pairs must be updated to completely update the entire adapter ***
+ 
+6.1 Using the AIX Command-Line Method
+
+Apply on the 3rd(fcs2) port first. Then to fcs0
+
+Login as root user. From the command line key in:
+# diag -d fcs2 -T download
+
+ +------------------------------------------------------+
+                                        |                                                      |
+                                        |                                                      |
+                                        | [TOP]                                                |
+                                        |        *** NOTICE *** NOTICE *** NOTICE ***          |
+                                        |                                                      |
+                                        | fcs0 represents a port on a multi-port               |
+                                        | fibre channel adapter. To update microcode on        |
+                                        | this adapter, microcode needs to be installed        |
+                                        | on both fcs0 and fcs1.                               |
+                                        | Selecting either fcs0 or fcs1 installs               |
+                                        | microcode on both ports.                             |
+                                        | [MORE...11]                                          |
+                                        |                                                      |
+                                        | F3=Cancel        F10=Exit         Enter              |
+F3=Cancel                         F10=Ex+------------------------------------------------------+
+
+INSTALL MICROCODE                                                                                                                  802114
+fcs0             PCIe2 8Gb 4-Port FC Adapter (7710322514101e04)
+
+Select the source of the microcode image.
+
+
+Make selection, use Enter to continue.
+
+  file system
+      /etc/microcode
+
+
+INSTALL MICROCODE                                                                                                                  802116
+fcs0             PCIe2 8Gb 4-Port FC Adapter (7710322514101e04)
+
+The current microcode level for fcs0
+is 0320080270.
+
+Available levels to install are listed below.
+Select the microcode level to be installed.
+
+Use Help for explanations of "M", "L", "C"
+and "P".
+
+Make selection, use Enter to continue.
+
+  M     0325080271
+
+
+INSTALL MICROCODE                                                                                                                  802118
+fcs0    PCIe2 8Gb 4-Port FC Adapter (7710322514101e04)
+
+Installation of the microcode has completed successfully
+on fcs0 and fcs1.
+The current microcode level is 0325080271.
+Please run diagnostics on the resources fcs0 and fcs1 to
+ensure that the adapter is functioning properly.
+
+Use Enter to continue.
+
+----------------------------------------------------------------------------------
+=========================
+7.0 Verifying the Update
+=========================
+ 
+# lsmcode -A|grep fcs
+fcs0!7710322514101e04.0325080271
+fcs1!7710322514101e04.0325080271
+fcs2!7710322514101e04.0325080271
+fcs3!7710322514101e04.0325080271
+
+# lsmcode -cd fcs0
+The current microcode level for fcs0
+is 0325080271.
+
+# lsmcode -cd fcs1
+The current microcode level for fcs1
+is 0325080271.
+
+# lsmcode -cd fcs2
+The current microcode level for fcs2
+is 0325080271.
+
+# lsmcode -cd fcs3
+The current microcode level for fcs3
+is 0325080271.
+
+# lsmap -all -npiv
+ksh: lsmap:  not found.
+# exit
+hna2vio2:/home/padmin$ lsmap -all -npiv
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost0      U9009.42A.784E5E0-V3-C240               4 hna2xyz       AIX
+
+Status:LOGGED_IN
+FC name:fcs0                    FC loc code:U78D2.001.WZS091X-P1-C5-T1
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs2            VFC client DRC:U9009.42A.784E5E0-V4-C420
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost1      U9009.42A.784E5E0-V3-C241               4 hna2xyz       AIX
+
+Status:LOGGED_IN
+FC name:fcs1                    FC loc code:U78D2.001.WZS091X-P1-C5-T2
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs3            VFC client DRC:U9009.42A.784E5E0-V4-C421
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost2      U9009.42A.784E5E0-V3-C250               5 hna2ora        AIX
+
+Status:LOGGED_IN
+FC name:fcs0                    FC loc code:U78D2.001.WZS091X-P1-C5-T1
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs2            VFC client DRC:U9009.42A.784E5E0-V5-C520
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost3      U9009.42A.784E5E0-V3-C251               5 hna2ora        AIX
+
+Status:LOGGED_IN
+FC name:fcs1                    FC loc code:U78D2.001.WZS091X-P1-C5-T2
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs3            VFC client DRC:U9009.42A.784E5E0-V5-C521
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost4      U9009.42A.784E5E0-V3-C260               6 hna2build      AIX
+
+Status:LOGGED_IN
+FC name:fcs0                    FC loc code:U78D2.001.WZS091X-P1-C5-T1
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs2            VFC client DRC:U9009.42A.784E5E0-V6-C620
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost5      U9009.42A.784E5E0-V3-C261               6 hna2build      AIX
+
+Status:LOGGED_IN
+FC name:fcs1                    FC loc code:U78D2.001.WZS091X-P1-C5-T2
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs3            VFC client DRC:U9009.42A.784E5E0-V6-C621
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost8      U9009.42A.784E5E0-V3-C280               8 hna1xyz-dr    AIX
+
+Status:LOGGED_IN
+FC name:fcs0                    FC loc code:U78D2.001.WZS091X-P1-C5-T1
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs2            VFC client DRC:U9009.42A.784E5E0-V8-C820
+
+Name          Physloc                            ClntID ClntName       ClntOS
+------------- ---------------------------------- ------ -------------- -------
+vfchost9      U9009.42A.784E5E0-V3-C281               8 hna1xyz-dr    AIX
+
+Status:LOGGED_IN
+FC name:fcs1                    FC loc code:U78D2.001.WZS091X-P1-C5-T2
+Ports logged in:3
+Flags:0x12a<LOGGED_IN,STRIP_MERGE,SCSI_CLIENT>
+VFC client name:fcs3            VFC client DRC:U9009.42A.784E5E0-V8-C821
+
+hna2vio2:/home/padmin$
+
+hna1vio1: updated
+# lsmcode -A|grep fcs
+fcs0!7710322514101e04.0325080271
+fcs1!7710322514101e04.0325080271
+fcs2!7710322514101e04.0325080271
+fcs3!7710322514101e04.0325080271
+
+
+Ref:
+https://delivery04.dhe.ibm.com/sar/CMA/IOA/08prg/0/EN0Y_EN12_Microcode_Readme_0117202020-fw_0325080271.html 
